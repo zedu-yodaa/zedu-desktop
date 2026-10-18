@@ -45,24 +45,37 @@ class AuthNotifier extends Notifier<AuthState> {
   }
 
   Future<void> login({required String email, required String password}) async {
-    AppLogger.d('Login attempt — $email', tag: _tag);
+    AppLogger.d('Login attempt \u2014 $email', tag: _tag);
     state = state.copyWith(isLoading: true, clearError: true);
 
-    final result = await _repository.login(email: email, password: password);
-    switch (result) {
-      case Success<AuthSession>():
-        AppLogger.i('Login succeeded — token persisted', tag: _tag);
-        await _storage.saveAccessToken(result.value.accessToken);
-        state = AuthState(
-          status: AuthStatus.authenticated,
-          user: result.value.user,
-        );
-      case Failure<AuthSession>():
-        AppLogger.w('Login rejected — ${result.error.message}', tag: _tag);
-        state = state.copyWith(
-          isLoading: false,
-          error: result.error.friendlyMessage,
-        );
+    try {
+      final result = await _repository.login(email: email, password: password);
+      switch (result) {
+        case Success<AuthSession>():
+          AppLogger.i('Login succeeded \u2014 token persisted', tag: _tag);
+          await _storage.saveAccessToken(result.value.accessToken);
+          state = AuthState(
+            status: AuthStatus.authenticated,
+            user: result.value.user,
+          );
+        case Failure<AuthSession>():
+          AppLogger.w('Login rejected \u2014 ${result.error.message}', tag: _tag);
+          state = state.copyWith(
+            isLoading: false,
+            error: result.error.friendlyMessage,
+          );
+      }
+    } catch (error, stackTrace) {
+      AppLogger.e(
+        'Unexpected login error',
+        tag: _tag,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      state = state.copyWith(
+        isLoading: false,
+        error: _friendlyAuthError(error),
+      );
     }
   }
 
@@ -105,26 +118,47 @@ class AuthNotifier extends Notifier<AuthState> {
     required String email,
     required String password,
   }) async {
-    AppLogger.d('Sign up attempt — $email', tag: _tag);
+    AppLogger.d('Sign up attempt \u2014 $email', tag: _tag);
     state = state.copyWith(isLoading: true, clearError: true);
 
-    final result = await _repository.signUp(
-      username: username,
-      email: email,
-      password: password,
-    );
-    switch (result) {
-      case Success<void>():
-        AppLogger.i('Sign up succeeded', tag: _tag);
-        // Usually we login automatically after sign up or wait for verification
-        await login(email: email, password: password);
-      case Failure<void>():
-        AppLogger.w('Sign up failed — ${result.error.message}', tag: _tag);
-        state = state.copyWith(
-          isLoading: false,
-          error: result.error.friendlyMessage,
-        );
+    try {
+      final result = await _repository.signUp(
+        username: username,
+        email: email,
+        password: password,
+      );
+      switch (result) {
+        case Success<void>():
+          AppLogger.i('Sign up succeeded', tag: _tag);
+          // Usually we login automatically after sign up or wait for verification.
+          await login(email: email, password: password);
+        case Failure<void>():
+          AppLogger.w('Sign up failed \u2014 ${result.error.message}', tag: _tag);
+          state = state.copyWith(
+            isLoading: false,
+            error: result.error.friendlyMessage,
+          );
+      }
+    } catch (error, stackTrace) {
+      AppLogger.e(
+        'Unexpected sign up error',
+        tag: _tag,
+        error: error,
+        stackTrace: stackTrace,
+      );
+      state = state.copyWith(
+        isLoading: false,
+        error: _friendlyAuthError(error),
+      );
     }
+  }
+
+  String _friendlyAuthError(Object error) {
+    if (error is ApiFailure) return error.friendlyMessage;
+    if (error is DioException) {
+      return ApiFailure.fromDioException(error).friendlyMessage;
+    }
+    return 'Unable to complete the request. Please try again.';
   }
 
   Future<bool> forgotPassword({required String email}) async {

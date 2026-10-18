@@ -291,11 +291,24 @@ class HomeChatArea extends ConsumerWidget {
         ? (chat.id ?? 'general')
         : 'general';
 
-    return Column(
+    return Stack(
       children: [
-        _buildChatHeader(context, channelName),
-        Expanded(child: _buildWelcomeScreen(context, channelName)),
-        _buildMessageInput(context, channelName),
+        Column(
+          children: [
+            _buildChatHeader(context, channelName),
+            Expanded(child: _buildWelcomeScreen(context, channelName)),
+            _buildMessageInput(context, channelName),
+          ],
+        ),
+        Consumer(
+          builder: (context, ref, child) {
+            final call = ref.watch(activeCallProvider).state;
+            if (call.status == CallStatus.active) {
+              return const BuzzMeetingView();
+            }
+            return const SizedBox.shrink();
+          },
+        ),
       ],
     );
   }
@@ -323,7 +336,17 @@ class HomeChatArea extends ConsumerWidget {
               ),
             ),
           ),
-          _HeaderAction(icon: Icons.headphones_outlined, label: 'Start Buzz'),
+          _HeaderAction(
+            icon: Icons.headphones_outlined,
+            label: 'Start Buzz',
+            onPressed: () {
+              ref.read(activeCallProvider.notifier).initiateCall(
+                    remoteUserId: 'channel:$channelName',
+                    remoteUserName: '#$channelName',
+                    channelId: channelName,
+                  );
+            },
+          ),
           const SizedBox(width: 12),
           CircleAvatar(
             radius: 14,
@@ -442,28 +465,40 @@ class HomeChatArea extends ConsumerWidget {
 class _HeaderAction extends StatelessWidget {
   final IconData icon;
   final String label;
+  final VoidCallback onPressed;
 
-  const _HeaderAction({required this.icon, required this.label});
+  const _HeaderAction({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        border: Border.all(color: colors.divider),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPressed,
         borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: colors.textPrimary),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: TextStyle(color: colors.textPrimary, fontSize: 13),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            border: Border.all(color: colors.divider),
+            borderRadius: BorderRadius.circular(8),
           ),
-        ],
+          child: Row(
+            children: [
+              Icon(icon, size: 18, color: colors.textPrimary),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(color: colors.textPrimary, fontSize: 13),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

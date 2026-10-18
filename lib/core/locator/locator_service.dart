@@ -16,7 +16,14 @@ void setupLocator() {
   final baseUrl = config.apiBaseUrl.endsWith('/')
       ? config.apiBaseUrl
       : '${config.apiBaseUrl}/';
-  final dio = Dio(BaseOptions(baseUrl: baseUrl));
+  final dio = Dio(
+    BaseOptions(
+      baseUrl: baseUrl,
+      connectTimeout: const Duration(seconds: 15),
+      sendTimeout: const Duration(seconds: 20),
+      receiveTimeout: const Duration(seconds: 30),
+    ),
+  );
   dio.interceptors.add(authInterceptor);
 
   locator.registerLazySingleton<ApiBaseService>(
