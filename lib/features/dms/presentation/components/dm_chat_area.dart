@@ -26,9 +26,19 @@ class _DmChatAreaState extends ConsumerState<DmChatArea> {
     return '@${parts.first}_${parts.last}';
   }
 
+  void _openEditProfile() {
+    final account =
+        ref.read(userProfileNotifierProvider).account ?? ProfileAccount.empty();
+    showEditProfileDialog(context, account, (updated) {
+      ref.read(userProfileNotifierProvider.notifier).updateAccount(updated);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final userId = ref.watch(authNotifierProvider.select((s) => s.user?.id));
+    final isOwnSpace = widget.conversation.isOwnSpaceOf(userId);
 
     return DropTarget(
       onDragDone: (detail) {
@@ -47,7 +57,10 @@ class _DmChatAreaState extends ConsumerState<DmChatArea> {
           children: [
             Column(
               children: [
-                _DmChatHeader(conversation: widget.conversation),
+                _DmChatHeader(
+                  conversation: widget.conversation,
+                  isOwnSpace: isOwnSpace,
+                ),
                 Expanded(
                   child: Consumer(
                     builder: (context, ref, child) {
@@ -105,9 +118,14 @@ class _DmChatAreaState extends ConsumerState<DmChatArea> {
                               ),
                             if (!historyState.hasMore)
                               SliverToBoxAdapter(
-                                child: DmProfileCard(
-                                  conversation: widget.conversation,
-                                ),
+                                child: isOwnSpace
+                                    ? OwnSpaceIntro(
+                                        conversation: widget.conversation,
+                                        onEditProfile: _openEditProfile,
+                                      )
+                                    : DmProfileCard(
+                                        conversation: widget.conversation,
+                                      ),
                               ),
                           ],
                         ),
@@ -260,8 +278,9 @@ class _DmChatAreaState extends ConsumerState<DmChatArea> {
 
 class _DmChatHeader extends StatelessWidget {
   final DmConversation conversation;
+  final bool isOwnSpace;
 
-  const _DmChatHeader({required this.conversation});
+  const _DmChatHeader({required this.conversation, this.isOwnSpace = false});
 
   @override
   Widget build(BuildContext context) {
@@ -296,8 +315,20 @@ class _DmChatHeader extends StatelessWidget {
                 : null,
           ),
           const SizedBox(width: 12),
-          Text(
-            conversation.displayName,
+          Text.rich(
+            TextSpan(
+              text: conversation.displayName,
+              children: [
+                if (isOwnSpace)
+                  TextSpan(
+                    text: ' (you)',
+                    style: TextStyle(
+                      color: colors.textSecondary,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+              ],
+            ),
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w500,

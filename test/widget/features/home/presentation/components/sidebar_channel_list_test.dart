@@ -3,15 +3,20 @@ import 'package:zedu/features/features.dart';
 
 import '../../../../../helpers/helpers.dart';
 
-Channel _channel(String name, {bool archived = false, String org = 'org-1'}) =>
-    Channel(
-      id: 'channel-$name',
-      name: name,
-      description: '',
-      organisationId: org,
-      ownerId: 'user-1',
-      archived: archived,
-    );
+Channel _channel(
+  String name, {
+  bool archived = false,
+  bool isPrivate = false,
+  String org = 'org-1',
+}) => Channel(
+  id: 'channel-$name',
+  name: name,
+  description: '',
+  organisationId: org,
+  isPrivate: isPrivate,
+  ownerId: 'user-1',
+  archived: archived,
+);
 
 class FakeChannelNotifier extends ChannelNotifier {
   @override
@@ -20,6 +25,21 @@ class FakeChannelNotifier extends ChannelNotifier {
     _channel('random'),
     _channel('old', archived: true),
   ];
+}
+
+class MixedChannelNotifier extends ChannelNotifier {
+  @override
+  Future<List<Channel>> build() async => [
+    _channel('general'),
+    _channel('leads', isPrivate: true),
+    _channel('random'),
+    _channel('secret-old', isPrivate: true, archived: true),
+  ];
+}
+
+class PrivateOnlyChannelNotifier extends ChannelNotifier {
+  @override
+  Future<List<Channel>> build() async => [_channel('leads', isPrivate: true)];
 }
 
 /// Holds one selected workspace, and can switch to another.
@@ -129,6 +149,61 @@ void main() {
 
         expect(find.text('a-only'), findsNothing);
         expect(find.text('b-only'), findsNothing);
+      });
+    });
+
+    group('Private section', () {
+      const lock = ValueKey('private-channel-lock');
+
+      testWidgets('lists private channels under "Private" with a lock', (
+        tester,
+      ) async {
+        await pumpList(tester, channels: MixedChannelNotifier.new);
+
+        expect(find.text('Private'), findsOneWidget);
+        expect(find.byKey(lock), findsOneWidget);
+        expect(find.text('#'), findsNWidgets(2));
+
+        final randomTop = tester.getTopLeft(find.text('random')).dy;
+        final headingTop = tester.getTopLeft(find.text('Private')).dy;
+        final leadsTop = tester.getTopLeft(find.text('leads')).dy;
+        expect(randomTop, lessThan(headingTop));
+        expect(headingTop, lessThan(leadsTop));
+      });
+
+      testWidgets('hides archived private channels', (tester) async {
+        await pumpList(tester, channels: MixedChannelNotifier.new);
+
+        expect(find.text('secret-old'), findsNothing);
+      });
+
+      testWidgets('shows no "Private" heading without private channels', (
+        tester,
+      ) async {
+        await pumpList(tester, channels: FakeChannelNotifier.new);
+
+        expect(find.text('Private'), findsNothing);
+        expect(find.byKey(lock), findsNothing);
+      });
+
+      testWidgets('works with only private channels', (tester) async {
+        await pumpList(tester, channels: PrivateOnlyChannelNotifier.new);
+
+        expect(find.text('Private'), findsOneWidget);
+        expect(find.text('leads'), findsOneWidget);
+        expect(find.text('#'), findsNothing);
+      });
+
+      testWidgets('tapping a private channel opens it', (tester) async {
+        await pumpList(tester, channels: MixedChannelNotifier.new);
+
+        await tester.tap(find.text('leads'));
+        await tester.pump();
+
+        expect(
+          container.read(activeChatProvider),
+          const ActiveChatState(type: ActiveChatType.channel, id: 'leads'),
+        );
       });
     });
 
